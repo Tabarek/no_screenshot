@@ -32,8 +32,22 @@ public class IOSNoScreenshotPlugin: NSObject, FlutterPlugin, FlutterStreamHandle
         methodChannel = FlutterMethodChannel(name: methodChannelName, binaryMessenger: registrar.messenger())
         eventChannel = FlutterEventChannel(name: eventChannelName, binaryMessenger: registrar.messenger())
 
-        let window = UIApplication.shared.delegate?.window
-        let screenProtectorKit = ScreenProtectorKit(window: window as? UIWindow)
+        // Obtain the app's key window in a scene-safe way. Using
+        // `UIApplication.shared.delegate?.window` can be nil on newer iOS
+        // versions that use scenes, which can cause the underlying
+        // ScreenProtectorKit to create or attach to an unexpected window
+        // and produce layout shifts (observed on iOS 26 with RTL locales).
+        var keyWindow: UIWindow? = nil
+        if #available(iOS 13.0, *) {
+            keyWindow = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first { $0.isKeyWindow }
+        } else {
+            keyWindow = UIApplication.shared.keyWindow
+        }
+
+        let screenProtectorKit = ScreenProtectorKit(window: keyWindow)
         screenProtectorKit.configurePreventionScreenshot()
 
         let instance = IOSNoScreenshotPlugin(screenProtectorKit: screenProtectorKit)
